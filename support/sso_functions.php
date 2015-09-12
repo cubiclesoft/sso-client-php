@@ -1104,7 +1104,13 @@
 			if ($_SESSION[$this->sessionkey]["ipaddr"] !== $this->user_cache["ipaddr"] || (isset($_SESSION[$this->sessionkey]["cookies"]["_s"]) && isset($this->request[SSO_COOKIE_NAME . "_s"]) && $_SESSION[$this->sessionkey]["cookies"]["_s"] !== $this->request[SSO_COOKIE_NAME . "_s"]) || (isset($_SESSION[$this->sessionkey]["cookies"]["_v"]) && isset($this->request[SSO_COOKIE_NAME . "_v"]) && $_SESSION[$this->sessionkey]["cookies"]["_v"] !== $this->request[SSO_COOKIE_NAME . "_v"]))
 			{
 				// Assume the session was hijacked if the SSO server check has already happened.
-				if ($this->user_info["loaded"])  return false;
+				if ($this->user_info["loaded"])
+				{
+					// Avoid an infinite loop but force a logout.
+					$_SESSION[$this->sessionkey]["cookies"] = array();
+
+					return false;
+				}
 
 				// Validate the login.  Handle scenarios where the SSO Server is unavailable.
 				$options = array(
