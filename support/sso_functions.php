@@ -100,7 +100,7 @@
 			$cryptopts["prefix"] = pack("H*", $this->rng->GenerateToken());
 
 			if ($mode === "aes256")  $data = SSO_ExtendedAES::CreateDataPacket($data, $key, $cryptopts);
-			else  $data = SSO_Blowfish::CreateDataPacket($data, $key, $cryptopts);
+			else  $data = SSO_ExtendedBlowfish::CreateDataPacket($data, $key, $cryptopts);
 
 			$data = str_replace(array("+", "/", "="), array("-", "_", ""), base64_encode($data));
 
@@ -126,7 +126,7 @@
 				if ($data !== false)
 				{
 					if ($mode === "aes256")  $data = SSO_ExtendedAES::ExtractDataPacket($data, $key, $cryptopts);
-					else  $data = SSO_Blowfish::ExtractDataPacket($data, $key, $cryptopts);
+					else  $data = SSO_ExtendedBlowfish::ExtractDataPacket($data, $key, $cryptopts);
 				}
 
 				if ($data !== false)  $data = @json_decode($data, true);
@@ -178,7 +178,7 @@
 				else if (is_array($val))
 				{
 					$this->request[$key] = array();
-					foreach ($val as $key2 => $val2)  $this->request[$key][$key2] = $this->ProcPOSTStr($val2);
+					foreach ($val as $key2 => $val2)  $this->request[$key][$key2] = (is_string($val2) ? $this->ProcPOSTStr($val2) : $val2);
 				}
 				else  $this->request[$key] = $val;
 			}
@@ -441,7 +441,7 @@
 			if (isset($info["rinfo"]))
 			{
 				$data = @base64_decode($info["rinfo"]);
-				if ($data !== false)  $data = SSO_Blowfish::ExtractDataPacket($data, pack("H*", SSO_CLIENT_RAND_SEED7), array("mode" => "CBC", "iv" => pack("H*", SSO_CLIENT_RAND_SEED8), "key2" => pack("H*", SSO_CLIENT_RAND_SEED9), "iv2" => pack("H*", SSO_CLIENT_RAND_SEED10)));
+				if ($data !== false)  $data = SSO_ExtendedBlowfish::ExtractDataPacket($data, pack("H*", SSO_CLIENT_RAND_SEED7), array("mode" => "CBC", "iv" => pack("H*", SSO_CLIENT_RAND_SEED8), "key2" => pack("H*", SSO_CLIENT_RAND_SEED9), "iv2" => pack("H*", SSO_CLIENT_RAND_SEED10)));
 				if ($data !== false && function_exists("gzcompress") && function_exists("gzuncompress"))  $data = @gzuncompress($data);
 				if ($data !== false)  $data = @unserialize($data);
 
@@ -520,7 +520,7 @@
 			}
 
 			if ($mode == "aes256")  $cdata = SSO_ExtendedAES::ExtractDataPacket($cdata, $key, $options);
-			else  $cdata = SSO_Blowfish::ExtractDataPacket($cdata, $key, $options);
+			else  $cdata = SSO_ExtendedBlowfish::ExtractDataPacket($cdata, $key, $options);
 
 			if ($cdata === false)  return false;
 			$vdata = hash_hmac("sha1", $cdata . ":" . SSO_SERVER_APIKEY, pack("H*", SSO_CLIENT_RAND_SEED6), true);
@@ -704,7 +704,7 @@
 
 				$data = serialize($this->orig_vars);
 				if (function_exists("gzcompress") && function_exists("gzuncompress"))  $data = @gzcompress($data);
-				$data = SSO_Blowfish::CreateDataPacket($data, pack("H*", SSO_CLIENT_RAND_SEED7), array("prefix" => pack("H*", $this->rng->GenerateToken()), "mode" => "CBC", "iv" => pack("H*", SSO_CLIENT_RAND_SEED8), "key2" => pack("H*", SSO_CLIENT_RAND_SEED9), "iv2" => pack("H*", SSO_CLIENT_RAND_SEED10)));
+				$data = SSO_ExtendedBlowfish::CreateDataPacket($data, pack("H*", SSO_CLIENT_RAND_SEED7), array("prefix" => pack("H*", $this->rng->GenerateToken()), "mode" => "CBC", "iv" => pack("H*", SSO_CLIENT_RAND_SEED8), "key2" => pack("H*", SSO_CLIENT_RAND_SEED9), "iv2" => pack("H*", SSO_CLIENT_RAND_SEED10)));
 
 				if ($appurl == "")  $appurl = $this->GetRequestHost() . SSO_COOKIE_PATH;
 
@@ -819,7 +819,7 @@
 			if ($data === false)  return false;
 
 			if ($mode == "aes256")  $data = SSO_ExtendedAES::ExtractDataPacket($data, $key, $options);
-			else  $data = SSO_Blowfish::ExtractDataPacket($data, $key, $options);
+			else  $data = SSO_ExtendedBlowfish::ExtractDataPacket($data, $key, $options);
 
 			if ($data === false)  return false;
 
@@ -859,7 +859,7 @@
 			}
 
 			if ($mode == "aes256")  $data = SSO_ExtendedAES::CreateDataPacket($data, $key, $options);
-			else  $data = SSO_Blowfish::CreateDataPacket($data, $key, $options);
+			else  $data = SSO_ExtendedBlowfish::CreateDataPacket($data, $key, $options);
 
 			$data = $mode . ":" . (SSO_CLIENT_DB_DUAL_ENCRYPT ? "2" : "1") . ":" . base64_encode($data);
 
@@ -1048,7 +1048,7 @@
 				}
 
 				if ($mode == "aes256")  $cdata = SSO_ExtendedAES::CreateDataPacket($cdata, $key, $options);
-				else  $cdata = SSO_Blowfish::CreateDataPacket($cdata, $key, $options);
+				else  $cdata = SSO_ExtendedBlowfish::CreateDataPacket($cdata, $key, $options);
 
 				$cdata = str_replace(array("+", "/", "="), array("-", "_", ""), base64_encode($cdata));
 
