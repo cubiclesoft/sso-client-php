@@ -1,6 +1,6 @@
 <?php
 	// CubicleSoft PHP HTTP class.  Modified for SSO Client integration.
-	// (C) 2016 CubicleSoft.  All Rights Reserved.
+	// (C) 2017 CubicleSoft.  All Rights Reserved.
 
 	class SSO_HTTP
 	{
@@ -252,6 +252,34 @@
 			return "";
 		}
 
+		public static function GetSSLCiphers($type = "intermediate")
+		{
+			$type = strtolower($type);
+
+			// Cipher list last updated May 3, 2017.
+			if ($type == "modern")  return "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256";
+			else if ($type == "old")  return "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-DSS-AES128-GCM-SHA256:kEDH+AESGCM:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA:ECDHE-ECDSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-DSS-AES128-SHA256:DHE-RSA-AES256-SHA256:DHE-DSS-AES256-SHA:DHE-RSA-AES256-SHA:ECDHE-RSA-DES-CBC3-SHA:ECDHE-ECDSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:AES:DES-CBC3-SHA:HIGH:SEED:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!RSAPSK:!aDH:!aECDH:!EDH-DSS-DES-CBC3-SHA:!KRB5-DES-CBC3-SHA:!SRP";
+
+			return "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES256-SHA:ECDHE-ECDSA-DES-CBC3-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:DES-CBC3-SHA:!DSS";
+		}
+
+		public static function GetSafeSSLOpts($cafile = true, $cipherstype = "intermediate")
+		{
+			// Result array last updated May 3, 2017.
+			$result = array(
+				"ciphers" => self::GetSSLCiphers($cipherstype),
+				"disable_compression" => true,
+				"allow_self_signed" => false,
+				"verify_peer" => true,
+				"verify_depth" => 5
+			);
+
+			if ($cafile === true)  $result["auto_cainfo"] = true;
+			else if ($cafile !== false)  $result["cafile"] = $cafile;
+
+			return $result;
+		}
+
 		// Reasonably parses RFC1123, RFC850, and asctime() dates.
 		public static function GetDateTimestamp($httpdate)
 		{
@@ -330,6 +358,21 @@
 			}
 
 			return $result;
+		}
+
+		public static function MergeRawHeaders(&$headers, $rawheaders)
+		{
+			foreach ($rawheaders as $name => $val)
+			{
+				$val = self::HeaderValueCleanup($val);
+				if ($val != "")
+				{
+					$name2 = self::HeaderNameCleanup($name);
+					if (isset($headers[$name2]))  unset($headers[$name2]);
+
+					$headers[$name] = $val;
+				}
+			}
 		}
 
 		public static function ExtractHeader($data)
@@ -416,7 +459,7 @@
 				if (!isset($options["headers"]["Host"]))  $options[$key]["CN_match"] = $host;
 				else
 				{
-					$info = self::ExtractURL("http://" . $options["headers"]["Host"]);
+					$info = self::ExtractURL("https://" . $options["headers"]["Host"]);
 					$options[$key]["CN_match"] = $info["host"];
 				}
 			}
@@ -429,7 +472,7 @@
 				if (!isset($options["headers"]["Host"]))  $options[$key]["SNI_server_name"] = $host;
 				else
 				{
-					$info = self::ExtractURL("http://" . $options["headers"]["Host"]);
+					$info = self::ExtractURL("https://" . $options["headers"]["Host"]);
 					$options[$key]["SNI_server_name"] = $info["host"];
 				}
 			}
@@ -537,7 +580,9 @@
 		{
 			while (strpos($state["data"], "\n") === false)
 			{
-				$data2 = @fgets($state["fp"], 116000);
+				if ($state["debug"])  $data2 = fgets($state["fp"], 116000);
+				else  $data2 = @fgets($state["fp"], 116000);
+
 				if ($data2 === false || $data2 === "")
 				{
 					if (feof($state["fp"]))  return array("success" => false, "error" => self::HTTPTranslate("Remote peer disconnected."), "errorcode" => "peer_disconnected");
@@ -573,7 +618,9 @@
 		{
 			while ($state["sizeleft"] === false || $state["sizeleft"] > 0)
 			{
-				$data2 = @fread($state["fp"], ($state["sizeleft"] === false || $state["sizeleft"] > 65536 ? 65536 : $state["sizeleft"]));
+				if ($state["debug"])  $data2 = fread($state["fp"], ($state["sizeleft"] === false || $state["sizeleft"] > 65536 ? 65536 : $state["sizeleft"]));
+				else  $data2 = @fread($state["fp"], ($state["sizeleft"] === false || $state["sizeleft"] > 65536 ? 65536 : $state["sizeleft"]));
+
 				if ($data2 === false)  return array("success" => false, "error" => self::HTTPTranslate("Underlying stream encountered a read error."), "errorcode" => "stream_read_error");
 				if ($data2 === "")
 				{
@@ -617,12 +664,14 @@
 					// This is a huge hack that has a pretty good chance of blocking on the socket.
 					// Peeling off up to just 4KB at a time helps to minimize that possibility.  It's better than guaranteed failure of the socket though.
 					@stream_set_blocking($state["fp"], 1);
-					$result = @fwrite($state["fp"], (strlen($state[$prefix . "data"]) > 4096 ? substr($state[$prefix . "data"], 0, 4096) : $state[$prefix . "data"]));
+					if ($state["debug"])  $result = fwrite($state["fp"], (strlen($state[$prefix . "data"]) > 4096 ? substr($state[$prefix . "data"], 0, 4096) : $state[$prefix . "data"]));
+					else  $result = @fwrite($state["fp"], (strlen($state[$prefix . "data"]) > 4096 ? substr($state[$prefix . "data"], 0, 4096) : $state[$prefix . "data"]));
 					@stream_set_blocking($state["fp"], 0);
 				}
 				else
 				{
-					$result = @fwrite($state["fp"], $state[$prefix . "data"]);
+					if ($state["debug"])  $result = fwrite($state["fp"], $state[$prefix . "data"]);
+					else  $result = @fwrite($state["fp"], $state[$prefix . "data"]);
 				}
 
 				if ($result === false || feof($state["fp"]))  return array("success" => false, "error" => self::HTTPTranslate("A fwrite() failure occurred.  Most likely cause:  Connection failure."), "errorcode" => "fwrite_failed");
@@ -705,9 +754,10 @@
 							{
 								$readfp = NULL;
 								$writefp = array($state["fp"]);
-								$exceptfp = NULL;
-								$result = @stream_select($readfp, $writefp, $exceptfp, 0);
-								if ($result === false)  return self::CleanupErrorState($state, array("success" => false, "error" => self::HTTPTranslate("A stream_select() failure occurred.  Most likely cause:  Connection failure."), "errorcode" => "stream_select_failed"));
+								$exceptfp = array($state["fp"]);
+								if ($state["debug"])  $result = stream_select($readfp, $writefp, $exceptfp, 0);
+								else  $result = @stream_select($readfp, $writefp, $exceptfp, 0);
+								if ($result === false || count($exceptfp))  return self::CleanupErrorState($state, array("success" => false, "error" => self::HTTPTranslate("A stream_select() failure occurred.  Most likely cause:  Connection failure."), "errorcode" => "stream_select_failed"));
 
 								if (!count($writefp))  return array("success" => false, "error" => self::HTTPTranslate("Connection not established yet."), "errorcode" => "no_data");
 							}
@@ -940,7 +990,8 @@
 								$readfp = array($state["fp"]);
 								$writefp = NULL;
 								$exceptfp = NULL;
-								$result = @stream_select($readfp, $writefp, $exceptfp, 0);
+								if ($state["debug"])  $result = stream_select($readfp, $writefp, $exceptfp, 0);
+								else  $result = @stream_select($readfp, $writefp, $exceptfp, 0);
 								if ($result === false)  return self::CleanupErrorState($state, array("success" => false, "error" => self::HTTPTranslate("A stream_select() failure occurred.  Most likely cause:  Connection failure."), "errorcode" => "stream_select_failed"));
 
 								if (!count($readfp))  return array("success" => false, "error" => self::HTTPTranslate("Connection not fully established yet."), "errorcode" => "no_data");
@@ -1295,7 +1346,7 @@
 			if ($url["scheme"] != "http" && $url["scheme"] != "https")  return array("success" => false, "error" => self::HTTPTranslate("RetrieveWebpage() only supports the 'http' and 'https' protocols."), "errorcode" => "protocol_check");
 
 			$secure = ($url["scheme"] == "https");
-			$protocol = ($secure ? (isset($options["protocol"]) && strtolower($options["protocol"]) == "ssl" ? "ssl" : "tls") : "tcp");
+			$protocol = ($secure ? (isset($options["protocol"]) ? strtolower($options["protocol"]) : "ssl") : "tcp");
 			if (function_exists("stream_get_transports") && !in_array($protocol, stream_get_transports()))  return array("success" => false, "error" => self::HTTPTranslate("The desired transport protocol '%s' is not installed.", $protocol), "errorcode" => "transport_not_installed");
 			$host = str_replace(" ", "-", self::HeaderValueCleanup($url["host"]));
 			if ($host == "")  return array("success" => false, "error" => self::HTTPTranslate("Invalid URL."));
@@ -1309,6 +1360,7 @@
 			// Cleanup input headers.
 			if (!isset($options["headers"]))  $options["headers"] = array();
 			$options["headers"] = self::NormalizeHeaders($options["headers"]);
+			if (isset($options["rawheaders"]))  self::MergeRawHeaders($options["headers"], $options["rawheaders"]);
 
 			// Process the proxy URL (if specified).
 			$useproxy = (isset($options["proxyurl"]) && trim($options["proxyurl"]) != "");
@@ -1321,7 +1373,7 @@
 				$proxyurl = self::ExtractURL($proxyurl);
 
 				$proxysecure = ($proxyurl["scheme"] == "https");
-				$proxyprotocol = ($proxysecure ? (isset($options["proxyprotocol"]) && strtolower($options["proxyprotocol"]) == "ssl" ? "ssl" : "tls") : "tcp");
+				$proxyprotocol = ($proxysecure ? (isset($options["proxyprotocol"]) ? strtolower($options["proxyprotocol"]) : "ssl") : "tcp");
 				if (function_exists("stream_get_transports") && !in_array($proxyprotocol, stream_get_transports()))  return array("success" => false, "error" => self::HTTPTranslate("The desired transport proxy protocol '%s' is not installed.", $proxyprotocol), "errorcode" => "proxy_transport_not_installed");
 				$proxyhost = str_replace(" ", "-", self::HeaderValueCleanup($proxyurl["host"]));
 				$proxyport = ((int)$proxyurl["port"] ? (int)$proxyurl["port"] : ($proxysecure ? 443 : 80));
@@ -1338,15 +1390,16 @@
 					$proxydata .= "Host: " . $host . ($defaultport ? "" : ":" . $port) . "\r\n";
 					$proxydata .= "Proxy-Connection: keep-alive\r\n";
 					if ($proxyusername != "")  $proxydata .= "Proxy-Authorization: BASIC " . base64_encode($proxyusername . ":" . $proxypassword) . "\r\n";
-					if (isset($options["proxyheaders"]))
+					if (!isset($options["proxyheaders"]))  $options["proxyheaders"] = array();
+					$options["proxyheaders"] = self::NormalizeHeaders($options["proxyheaders"]);
+					if (isset($options["rawproxyheaders"]))  self::MergeRawHeaders($options["proxyheaders"], $options["rawproxyheaders"]);
+
+					unset($options["proxyheaders"]["Accept-Encoding"]);
+					foreach ($options["proxyheaders"] as $name => $val)
 					{
-						$options["proxyheaders"] = self::NormalizeHeaders($options["proxyheaders"]);
-						unset($options["proxyheaders"]["Accept-Encoding"]);
-						foreach ($options["proxyheaders"] as $name => $val)
-						{
-							if ($name != "Content-Type" && $name != "Content-Length" && $name != "Proxy-Connection" && $name != "Host")  $proxydata .= $name . ": " . $val . "\r\n";
-						}
+						if ($name != "Content-Type" && $name != "Content-Length" && $name != "Proxy-Connection" && $name != "Host")  $proxydata .= $name . ": " . $val . "\r\n";
 					}
+
 					$proxydata .= "\r\n";
 					if (isset($options["debug_callback"]) && is_callable($options["debug_callback"]))  call_user_func_array($options["debug_callback"], array("rawproxyheaders", $proxydata, &$options["debug_callback_opts"]));
 				}
@@ -1515,17 +1568,24 @@
 				if (!isset($options["proxyconnecttimeout"]))  $options["proxyconnecttimeout"] = 10;
 				$timeleft = self::GetTimeLeft($startts, $timeout);
 				if ($timeleft !== false)  $options["proxyconnecttimeout"] = min($options["proxyconnecttimeout"], $timeleft);
-				if (!function_exists("stream_socket_client"))  $fp = @fsockopen($proxyprotocol . "://" . $proxyhost, $proxyport, $errornum, $errorstr, $options["proxyconnecttimeout"]);
+				if (!function_exists("stream_socket_client"))
+				{
+					if ($debug)  $fp = fsockopen($proxyprotocol . "://" . $proxyhost, $proxyport, $errornum, $errorstr, $options["proxyconnecttimeout"]);
+					else  $fp = @fsockopen($proxyprotocol . "://" . $proxyhost, $proxyport, $errornum, $errorstr, $options["proxyconnecttimeout"]);
+				}
 				else
 				{
 					$context = @stream_context_create();
 					if (isset($options["source_ip"]))  $context["socket"] = array("bindto" => $options["source_ip"] . ":0");
-					if ($proxysecure && isset($options["proxysslopts"]) && is_array($options["proxysslopts"]))
+					if ($proxysecure)
 					{
+						if (!isset($options["proxysslopts"]) || !is_array($options["proxysslopts"]))  $options["proxysslopts"] = self::GetSafeSSLOpts();
 						self::ProcessSSLOptions($options, "proxysslopts", $host);
 						foreach ($options["proxysslopts"] as $key => $val)  @stream_context_set_option($context, "ssl", $key, $val);
 					}
-					$fp = @stream_socket_client($proxyprotocol . "://" . $proxyhost . ":" . $proxyport, $errornum, $errorstr, $options["proxyconnecttimeout"], STREAM_CLIENT_CONNECT | (isset($options["async"]) && $options["async"] ? STREAM_CLIENT_ASYNC_CONNECT : 0), $context);
+
+					if ($debug)  $fp = stream_socket_client($proxyprotocol . "://" . $proxyhost . ":" . $proxyport, $errornum, $errorstr, $options["proxyconnecttimeout"], (isset($options["async"]) && $options["async"] ? STREAM_CLIENT_ASYNC_CONNECT : STREAM_CLIENT_CONNECT), $context);
+					else  $fp = @stream_socket_client($proxyprotocol . "://" . $proxyhost . ":" . $proxyport, $errornum, $errorstr, $options["proxyconnecttimeout"], (isset($options["async"]) && $options["async"] ? STREAM_CLIENT_ASYNC_CONNECT : STREAM_CLIENT_CONNECT), $context);
 				}
 
 				if ($fp === false)  return array("success" => false, "error" => self::HTTPTranslate("Unable to establish a connection to '%s'.", ($proxysecure ? $proxyprotocol . "://" : "") . $proxyhost . ":" . $proxyport), "info" => $errorstr . " (" . $errornum . ")", "errorcode" => "proxy_connect");
@@ -1535,17 +1595,24 @@
 				if (!isset($options["connecttimeout"]))  $options["connecttimeout"] = 10;
 				$timeleft = self::GetTimeLeft($startts, $timeout);
 				if ($timeleft !== false)  $options["connecttimeout"] = min($options["connecttimeout"], $timeleft);
-				if (!function_exists("stream_socket_client"))  $fp = @fsockopen($protocol . "://" . $host, $port, $errornum, $errorstr, $options["connecttimeout"]);
+				if (!function_exists("stream_socket_client"))
+				{
+					if ($debug)  $fp = fsockopen($protocol . "://" . $host, $port, $errornum, $errorstr, $options["connecttimeout"]);
+					else  $fp = @fsockopen($protocol . "://" . $host, $port, $errornum, $errorstr, $options["connecttimeout"]);
+				}
 				else
 				{
 					$context = @stream_context_create();
 					if (isset($options["source_ip"]))  $context["socket"] = array("bindto" => $options["source_ip"] . ":0");
-					if ($secure && isset($options["sslopts"]) && is_array($options["sslopts"]))
+					if ($secure)
 					{
+						if (!isset($options["sslopts"]) || !is_array($options["sslopts"]))  $options["sslopts"] = self::GetSafeSSLOpts();
 						self::ProcessSSLOptions($options, "sslopts", $host);
 						foreach ($options["sslopts"] as $key => $val)  @stream_context_set_option($context, "ssl", $key, $val);
 					}
-					$fp = @stream_socket_client($protocol . "://" . $host . ":" . $port, $errornum, $errorstr, $options["connecttimeout"], STREAM_CLIENT_CONNECT | (isset($options["async"]) && $options["async"] ? STREAM_CLIENT_ASYNC_CONNECT : 0), $context);
+
+					if ($debug)  $fp = stream_socket_client($protocol . "://" . $host . ":" . $port, $errornum, $errorstr, $options["connecttimeout"], (isset($options["async"]) && $options["async"] ? STREAM_CLIENT_ASYNC_CONNECT : STREAM_CLIENT_CONNECT), $context);
+					else $fp = @stream_socket_client($protocol . "://" . $host . ":" . $port, $errornum, $errorstr, $options["connecttimeout"], (isset($options["async"]) && $options["async"] ? STREAM_CLIENT_ASYNC_CONNECT : STREAM_CLIENT_CONNECT), $context);
 				}
 
 				if ($fp === false)  return array("success" => false, "error" => self::HTTPTranslate("Unable to establish a connection to '%s'.", ($secure ? $protocol . "://" : "") . $host . ":" . $port), "info" => $errorstr . " (" . $errornum . ")", "errorcode" => "connect_failed");
