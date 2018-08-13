@@ -680,7 +680,7 @@
 			}
 
 			$this->removekeys = $removekeys;
-			if ($this->LoggedIn() && !$this->FromSSOServer())
+			if ($this->LoggedIn() && $this->FromSSOServer())
 			{
 				foreach ($this->removekeys as $key)
 				{
