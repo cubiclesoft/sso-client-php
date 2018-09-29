@@ -174,7 +174,7 @@
 		else if ($cookiename != $_REQUEST["cookie_name"])  echo "<span class=\"warning\">'SSO Client Cookie Name' will evaluate to '" . htmlspecialchars($cookiename) . "'.  This may not be what you entered or produce unintentional results.</span><br />";
 		else  echo "<span class=\"success\">The 'SSO Client Cookie Name' looks okay.</span><br />";
 
-		$url = dirname(BB_GetRequestURLBase());
+		$url = str_replace("\\", "/", dirname(BB_GetRequestURLBase()));
 		if (substr($url, -1) != "/")  $url .= "/";
 
 		if (substr($_REQUEST["cookie_path"], -1) != "/")  echo "<span class=\"error\">'SSO Client Cookie Path' does not have a trailing '/' character.  This can cause problems in some browsers.</span><br />";
