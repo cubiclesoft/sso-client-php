@@ -1,8 +1,6 @@
 <?php
-	// CubicleSoft PHP IP Address functions.
+	// CubicleSoft PHP IP Address functions.  Modified for SSO Client integration.
 	// (C) 2017 CubicleSoft.  All Rights Reserved.
-	//
-	// Class renamed for SSO Client support.
 
 	class SSO_IPAddr
 	{
