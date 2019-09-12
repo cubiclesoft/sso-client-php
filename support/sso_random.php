@@ -2,7 +2,7 @@
 	// Cryptographically Secure Pseudo-Random String Generator (CSPRSG) and CSPRNG.
 	// (C) 2018 CubicleSoft.  All Rights Reserved.
 
-	class CSPRNG
+	class SSO_CSPRNG
 	{
 		private static $alphanum = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 		private $mode, $fp, $cryptosafe;
