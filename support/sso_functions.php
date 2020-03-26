@@ -1,6 +1,6 @@
 <?php
 	// SSO client support class.
-	// (C) 2015 CubicleSoft.  All Rights Reserved.
+	// (C) 2020 CubicleSoft.  All Rights Reserved.
 
 	// Drop-in replacement for hash_hmac() on hosts where Hash is not available.
 	// Only supports HMAC-MD5 and HMAC-SHA1.
@@ -33,10 +33,19 @@
 	class SSO_Client_Base
 	{
 		protected $rng, $ipaddr, $request, $cookie_sent, $getrequesthost_cache, $client_lang, $client_def_lang, $user_info, $user_cache, $removekeys, $orig_vars;
+		protected $debugcallback, $debugcallbackopts;
 		public static $langmap;
+
+		public function SetDebugCallback($callback, $callbackopts = false)
+		{
+			$this->debugcallback = $callback;
+			$this->debugcallbackopts = $callbackopts;
+		}
 
 		public function SendRequest($action, $options = array(), $endpoint = SSO_SERVER_ENDPOINT_URL, $apikey = SSO_SERVER_APIKEY, $secretkey = SSO_SERVER_SECRETKEY)
 		{
+			if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("sendrequest_start", array("action" => $action, "options" => $options), &$this->debugcallbackopts));
+
 			require_once SSO_CLIENT_ROOT_PATH . "/" . SSO_CLIENT_SUPPORT_PATH . "/sso_http.php";
 
 			$options2 = array(
@@ -48,7 +57,7 @@
 					"Cache-Control" => "max-age=0"
 				)
 			);
-			if (defined("SSO_DEBUG") && SSO_DEBUG)  $options2["debug"] = true;
+			if (is_callable($this->debugcallback))  $options2["debug"] = true;
 
 			if (defined("SSO_CLIENT_PROXY_URL") && defined("SSO_CLIENT_PROXY_CONNECT") && SSO_CLIENT_PROXY_URL != "")
 			{
@@ -115,10 +124,12 @@
 				$retries++;
 			} while (!$result["success"] && $retries < 3);
 
+			if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("sendrequest_web_result", $result, &$this->debugcallbackopts));
+
 			if (!$result["success"])  return $result;
 
 			// Decode and extract response.
-			if ($result["body"]{0} == "{")  $data = @json_decode(trim($result["body"]), true);
+			if ($result["body"][0] == "{")  $data = @json_decode(trim($result["body"]), true);
 			else
 			{
 				$data = @base64_decode(trim($result["body"]));
@@ -136,6 +147,8 @@
 			else  $result = array("success" => false, "error" => "Unable to decode response data from the server.", "info" => $result["body"]);
 
 			if (!$result["success"])  $result["error"] = $this->Translate($result["error"]);
+
+			if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("sendrequest_result", $result, &$this->debugcallbackopts));
 
 			return $result;
 		}
@@ -164,7 +177,7 @@
 		protected function ProcPOSTStr($data)
 		{
 			$data = trim($data);
-			if (get_magic_quotes_gpc())  $data = stripslashes($data);
+			if (function_exists("get_magic_quotes_gpc") && @get_magic_quotes_gpc())  $data = stripslashes($data);
 
 			return $data;
 		}
@@ -217,12 +230,16 @@
 				if ($port !== false)  $domain = substr($domain, 0, $port);
 			}
 
-			header('Set-Cookie: ' . rawurlencode($name) . "=" . rawurlencode($value)
-								. (empty($expires) ? "" : "; expires=" . gmdate("D, d-M-Y H:i:s", $expires) . " GMT")
-								. (empty($path) ? "" : "; path=" . $path)
-								. (empty($domain) ? "" : "; domain=" . $domain)
-								. (!$secure ? "" : "; secure")
-								. (!$httponly ? "" : "; HttpOnly"), false);
+			$cookieval = rawurlencode($name) . "=" . rawurlencode($value);
+			if (!empty($expires))  $cookieval .= "; expires=" . gmdate("D, d-M-Y H:i:s", $expires) . " GMT";
+			if (!empty($path))  $cookieval .= "; path=" . $path;
+			if (!empty($domain))  $cookieval .= "; domain=" . $domain;
+			if ($secure)  $cookieval .= "; secure";
+			if ($httponly)  $cookieval .= "; HttpOnly";
+
+			header("Set-Cookie: " . $cookieval, false);
+
+			if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("setcookie", $cookieval, &$this->debugcallbackopts));
 
 			$_COOKIE[$name] = $value;
 			$_REQUEST[$name] = $value;
@@ -459,6 +476,8 @@
 
 					// Initialize IP address for API calls.
 					$this->ipaddr = self::GetRemoteIP();
+
+					if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("processlogin_orig_rinfo", $data, &$this->debugcallbackopts));
 				}
 			}
 
@@ -495,6 +514,8 @@
 				if ($qstr != "")  $url .= "?" . $qstr;
 			}
 
+			if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("saferedirect", $url, &$this->debugcallbackopts));
+
 			header("Location: " . $url);
 			exit();
 		}
@@ -502,13 +523,23 @@
 		public function LoggedIn()
 		{
 			if (isset($this->user_info))  return ($this->user_info["sso_id"] != "");
-			if (!isset($this->request[SSO_COOKIE_NAME . "_s"]))  return false;
+			if (!isset($this->request[SSO_COOKIE_NAME . "_s"]))
+			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loggedin_error", "Missing cookie:  " . SSO_COOKIE_NAME . "_s", &$this->debugcallbackopts));
+
+				return false;
+			}
 
 			// Decrypt the cookie.
 			$this->user_info = array("sso_id" => "");
 			$cdata = (string)$this->request[SSO_COOKIE_NAME . "_s"];
 			$cdata = @base64_decode(str_replace(array("-", "_"), array("+", "/"), $cdata));
-			if ($cdata === false)  return false;
+			if ($cdata === false)
+			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loggedin_error", "Invalid cookie (Base64 decode):  " . SSO_COOKIE_NAME . "_s", &$this->debugcallbackopts));
+
+				return false;
+			}
 
 			$mode = (SSO_COOKIE_CIPHER == "aes256" ? "aes256" : "blowfish");
 			$key = pack("H*", SSO_CLIENT_RAND_SEED);
@@ -522,14 +553,29 @@
 			if ($mode == "aes256")  $cdata = SSO_ExtendedAES::ExtractDataPacket($cdata, $key, $options);
 			else  $cdata = SSO_ExtendedBlowfish::ExtractDataPacket($cdata, $key, $options);
 
-			if ($cdata === false)  return false;
+			if ($cdata === false)
+			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loggedin_error", "Invalid cookie (decrypt " . $mode . "):  " . SSO_COOKIE_NAME . "_s", &$this->debugcallbackopts));
+
+				return false;
+			}
 			$vdata = hash_hmac("sha1", $cdata . ":" . SSO_SERVER_APIKEY, pack("H*", SSO_CLIENT_RAND_SEED6), true);
 			$compressed = (bool)(int)substr($cdata, 0, 1);
 			$cdata = substr($cdata, 2);
 			if ($compressed)  $cdata = @gzuncompress($cdata);
-			if ($cdata === false)  return false;
+			if ($cdata === false)
+			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loggedin_error", "Invalid cookie (uncompress):  " . SSO_COOKIE_NAME . "_s", &$this->debugcallbackopts));
+
+				return false;
+			}
 			$cdata = @json_decode($cdata, true);
-			if ($cdata === false)  return false;
+			if ($cdata === false)
+			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loggedin_error", "Invalid cookie (JSON decode):  " . SSO_COOKIE_NAME . "_s", &$this->debugcallbackopts));
+
+				return false;
+			}
 
 			// Load the user information structure.
 			$this->user_info = array(
@@ -555,10 +601,11 @@
 			);
 
 			// If the verification cookie is missing or invalid, logout of the session.
-			if (isset($this->request[SSO_COOKIE_NAME . "_v"]))  $vdata2 = @base64_decode(str_replace(array("-", "_"), array("+", "/"), (string)$this->request[SSO_COOKIE_NAME . "_v"]));
-			else  $vdata2 = false;
+			$vdata2 = (isset($this->request[SSO_COOKIE_NAME . "_v"]) ? @base64_decode(str_replace(array("-", "_"), array("+", "/"), (string)$this->request[SSO_COOKIE_NAME . "_v"])) : false);
 			if ($vdata2 === false || $vdata !== $vdata2)
 			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loggedin_error", "Invalid cookie (verify):  " . SSO_COOKIE_NAME . "_v", &$this->debugcallbackopts));
+
 				$this->Logout();
 
 				return false;
@@ -572,6 +619,8 @@
 				// Reset the session if the IP address changed.
 				if (defined("SSO_COOKIE_RESET_IPADDR_CHANGES") && SSO_COOKIE_RESET_IPADDR_CHANGES && $this->user_cache["ipaddr"] != $cdata["p"])
 				{
+					if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loggedin_error", "IP address changed.", &$this->debugcallbackopts));
+
 					$this->user_info["sso_id"] = "";
 
 					return false;
@@ -586,12 +635,16 @@
 				$result = $this->SendRequest("getlogin", $options);
 				if (!$result["success"] && !isset($result["info"]))
 				{
+					if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loggedin_error", "Session check request failed.", &$this->debugcallbackopts));
+
 					$this->user_info["sso_id"] = "";
 
 					return false;
 				}
 				if ($result["success"])  $this->ProcessLogin($result);
 			}
+
+			if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loggedin", true, &$this->debugcallbackopts));
 
 			return true;
 		}
@@ -619,6 +672,8 @@
 		// Self-contained initialization.
 		public function Init($removekeys = array())
 		{
+			if (!isset($this->debugcallback))  $this->debugcallback = false;
+
 			$this->rng = new SSO_CSPRNG();
 
 			// Initialize internal input variables.
@@ -684,7 +739,12 @@
 			{
 				foreach ($this->removekeys as $key)
 				{
-					if (isset($_GET[$key]))  $this->SafeRedirect(array());
+					if (isset($_GET[$key]))
+					{
+						$this->SaveUserInfo();
+
+						$this->SafeRedirect(array());
+					}
 				}
 			}
 
@@ -728,6 +788,8 @@
 				// Set the recovery ID to be able to retrieve the old data later.  Doubles as a XSRF defense.
 				$this->SetCookieFixDomain(SSO_COOKIE_NAME . "_rid", $result["rid"], 0, SSO_COOKIE_PATH, "", self::IsSSLRequest(), true);
 
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("login_start", $result, &$this->debugcallbackopts));
+
 				header("Location: " . $result["url"]);
 				exit();
 			}
@@ -764,12 +826,16 @@
 			$this->SetCookieFixDomain(SSO_COOKIE_NAME . "_sr_id", "", 1, SSO_COOKIE_PATH, "", self::IsSSLRequest(), true);
 			$this->SetCookieFixDomain(SSO_COOKIE_NAME . "_sr_t", "", 1, SSO_COOKIE_PATH, "", self::IsSSLRequest(), true);
 
+			if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("remotelogin", $result, &$this->debugcallbackopts));
+
 			header("Location: " . $result["url"]);
 			exit();
 		}
 
 		public function Logout()
 		{
+			if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("logout", true, &$this->debugcallbackopts));
+
 			if (isset($this->user_info) && isset($this->user_info["sso_id"]) && $this->user_info["sso_id"] != "")
 			{
 				$options = array(
@@ -816,12 +882,22 @@
 			}
 
 			$data = @base64_decode($data);
-			if ($data === false)  return false;
+			if ($data === false)
+			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loaddbdata_error", "Base64 decode failed.", &$this->debugcallbackopts));
+
+				return false;
+			}
 
 			if ($mode == "aes256")  $data = SSO_ExtendedAES::ExtractDataPacket($data, $key, $options);
 			else  $data = SSO_ExtendedBlowfish::ExtractDataPacket($data, $key, $options);
 
-			if ($data === false)  return false;
+			if ($data === false)
+			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loaddbdata_error", $mode . " decrypt failed.", &$this->debugcallbackopts));
+
+				return false;
+			}
 
 			if (count($data2) != 3)  $compressed = false;
 			else
@@ -830,12 +906,22 @@
 				$data = substr($data, 2);
 			}
 			if ($compressed)  $data = @gzuncompress($data);
-			if ($data === false)  return false;
+			if ($data === false)
+			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loaddbdata_error", "Uncompress failed.", &$this->debugcallbackopts));
+
+				return false;
+			}
 
 			if (count($data2) == 3)  $data = @json_decode($data, true);
 			else  $data = @unserialize($data);
 
-			if ($data === false)  return false;
+			if ($data === false)
+			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loaddbdata_error", "Unserialize operation failed.", &$this->debugcallbackopts));
+
+				return false;
+			}
 
 			$this->user_cache["dbdata"] = $data;
 
@@ -888,7 +974,12 @@
 			if ($savefirst)  $options["updateinfo"] = @json_encode($this->user_info["field_map"]);
 
 			$result = $this->SendRequest("getlogin", $options);
-			if (!$result["success"] && !isset($result["info"]))  return false;
+			if (!$result["success"] && !isset($result["info"]))
+			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("loaduserinfo_error", "Session check request failed.", &$this->debugcallbackopts));
+
+				return false;
+			}
 			if ($result["success"])  $this->ProcessLogin($result);
 
 			return $this->user_info["loaded"];
@@ -1109,6 +1200,8 @@
 					// Avoid an infinite loop but force a logout.
 					$_SESSION[$this->sessionkey]["cookies"] = array();
 
+					if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("session_loggedin_error", "Assuming session was hijacked.  Force logout.", &$this->debugcallbackopts));
+
 					return false;
 				}
 
@@ -1121,6 +1214,8 @@
 				$result = $this->SendRequest("getlogin", $options);
 				if (!$result["success"] && !isset($result["info"]))
 				{
+					if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("session_loggedin_error", "Session check request failed.", &$this->debugcallbackopts));
+
 					$this->user_info["sso_id"] = "";
 
 					return false;
@@ -1133,6 +1228,8 @@
 				}
 				else if ($_SESSION[$this->sessionkey]["ipaddr"] !== $this->user_cache["ipaddr"])
 				{
+					if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("session_loggedin_error", "IP address changed.", &$this->debugcallbackopts));
+
 					$this->user_info["sso_id"] = "";
 
 					return false;
@@ -1140,6 +1237,8 @@
 			}
 
 			$this->loggedinresult = true;
+
+			if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("session_loggedin", true, &$this->debugcallbackopts));
 
 			return true;
 		}
@@ -1180,6 +1279,8 @@
 
 			if ($_SESSION[$this->sessionkey]["shortipv6"] !== $this->ipaddr["shortipv6"] || (isset($_SESSION[$this->sessionkey]["cookies"]["_sr_id"]) && $_SESSION[$this->sessionkey]["cookies"]["_sr_id"] !== $this->request[SSO_COOKIE_NAME . "_sr_id"]) || (isset($_SESSION[$this->sessionkey]["cookies"]["_sr_t"]) && $_SESSION[$this->sessionkey]["cookies"]["_sr_t"] !== $this->request[SSO_COOKIE_NAME . "_sr_t"]))
 			{
+				if (is_callable($this->debugcallback))  call_user_func_array($this->debugcallback, array("session_canremotelogin_error", "IP address changed or cookies hijacked.", &$this->debugcallbackopts));
+
 				// IP address changed or the cookies were hijacked.
 				return false;
 			}

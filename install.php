@@ -73,7 +73,7 @@
 			<td>PHP 'magic_quotes_gpc' off</td>
 			<td align="right">
 <?php
-		if (get_magic_quotes_gpc())  echo "<span class=\"error\">No</span><br /><br />PHP is running with 'magic_quotes_gpc' enabled.  This setting is generally accepted as a security risk AND causes all sorts of non-security-related problems.  It is also deprecated.  Please turn it off by editing the php.ini file for your site - you may need to contact your hosting provider to accomplish this task.";
+		if (function_exists("get_magic_quotes_gpc") && @get_magic_quotes_gpc())  echo "<span class=\"error\">No</span><br /><br />PHP is running with 'magic_quotes_gpc' enabled.  This setting is generally accepted as a security risk AND causes all sorts of non-security-related problems.  It is also deprecated.  Please turn it off by editing the php.ini file for your site - you may need to contact your hosting provider to accomplish this task.";
 		else  echo "<span class=\"success\">Yes</span>";
 ?>
 			</td>
@@ -120,7 +120,6 @@
 		$functions = array(
 			"fsockopen" => "Web functions",
 			"json_decode" => "JSON decoding support functions",
-			"mcrypt_module_open" => "Mcrypt cryptographic support functions",
 			"openssl_open" => "OpenSSL extension support",
 		);
 
