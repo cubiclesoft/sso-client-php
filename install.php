@@ -146,6 +146,17 @@
 		if ($result["success"])  echo "<span class=\"success\">Default language selection looks okay.</span><br />";
 		else  echo "<span class=\"error\">Default language selection has a problem:  " . htmlspecialchars($result["error"]) . "</span><br />";
 
+		// Set up debug callback to catch connectivity issues.
+		$debugoutput = "";
+		function SSOClientDebugCallback($type, $data, &$opts)
+		{
+			global $debugoutput;
+
+			$debugoutput .= "<div class=\"info\">" . htmlspecialchars($type) . (is_string($data) ? " - " . htmlspecialchars($data) : (is_bool($data) ? "" : "\n<pre>" . json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "</pre>")) . "</div>\n";
+		}
+
+		$sso_client->SetDebugCallback("SSOClientDebugCallback");
+
 		define("SSO_CLIENT_PROXY_X_FORWARDED_FOR", $_REQUEST["sso_proxy_x_forwarded_for"]);
 		define("SSO_CLIENT_PROXY_CLIENT_IP", $_REQUEST["sso_proxy_client_ip"]);
 		define("SSO_CLIENT_PROXY_URL", $_REQUEST["sso_proxy_url"]);
@@ -161,7 +172,11 @@
 		{
 			$result = $sso_client->SendRequest("test");
 			if ($result["success"])  echo "<span class=\"success\">Successfully connected to the SSO server.</span><br />";
-			else  echo "<span class=\"error\">Failed to connect to the SSO server.  Error:  " . htmlspecialchars($result["error"]) . (isset($result["info"]) ? "  Info:  " . htmlspecialchars($result["info"]) : "") . "</span><br />";
+			else
+			{
+				echo "<span class=\"error\">Failed to connect to the SSO server.  Error:  " . htmlspecialchars($result["error"]) . (isset($result["info"]) ? "  Info:  " . htmlspecialchars($result["info"]) : "") . "</span><br />";
+				echo $debugoutput;
+			}
 		}
 
 		// Test cookie information.
