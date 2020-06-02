@@ -152,7 +152,7 @@
 		{
 			global $debugoutput;
 
-			$debugoutput .= "<div class=\"info\">" . htmlspecialchars($type) . (is_string($data) ? " - " . htmlspecialchars($data) : (is_bool($data) ? "" : "\n<pre>" . json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "</pre>")) . "</div>\n";
+			$debugoutput .= "<div class=\"info\">" . htmlspecialchars($type) . (is_string($data) ? " - " . htmlspecialchars($data) : (is_bool($data) ? "" : "\n<pre>" . str_replace(array("\\r\\n", "\\r", "\\n"), "\n", htmlspecialchars(json_encode($data, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT))) . "</pre>")) . "</div>\n";
 		}
 
 		$sso_client->SetDebugCallback("SSOClientDebugCallback");
