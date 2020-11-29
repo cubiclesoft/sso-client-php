@@ -5,7 +5,7 @@ The official PHP SSO Client for the Barebones SSO Server.
 
 [Barebones SSO Server](https://github.com/cubiclesoft/sso-server) is an awesome, scalable, secure, flexible login system.
 
-[![Donate](https://cubiclesoft.com/res/donate-shield.png)](https://cubiclesoft.com/donate/)
+[![Donate](https://cubiclesoft.com/res/donate-shield.png)](https://cubiclesoft.com/donate/) [![Discord](https://img.shields.io/discord/777282089980526602?label=chat&logo=discord)](https://cubiclesoft.com/product-support/github/)
 
 Features
 --------
